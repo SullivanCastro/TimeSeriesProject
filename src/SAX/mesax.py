@@ -124,18 +124,22 @@ class meSAX:
             mean = self.breakpoints[triplet[1]]
             elem_0, elem_1 = self.breakpoints[triplet[0]], self.breakpoints[triplet[2]]
             min_, max_ = min(elem_0, elem_1), max(elem_0, elem_1)
-            samples = np.random.normal(mean, 0.5, self.step_size)
-            while np.any(samples < min_) or np.any(samples > max_):
-                wrong_args_min = np.where(samples < min_)[0]
-                wrong_args_max = np.where(samples > max_)[0]
-                wrong_args = np.concatenate((wrong_args_min, wrong_args_max))
-                samples[wrong_args] = np.random.normal(mean, 1, len(wrong_args))
-            
-            np.sort(samples)
-            if elem_0 > elem_1:
-                samples = samples[::-1]
 
-            self.reconstructed_data[i*self.step_size:(i+1)*self.step_size] = samples
+            if mean==min_==max_:
+                self.reconstructed_data[i*self.step_size:(i+1)*self.step_size] = mean * np.ones(self.step_size)
+            else:
+                samples = np.random.normal(mean, 0.5, self.step_size)
+                while np.any(samples < min_) or np.any(samples > max_):
+                    wrong_args_min = np.where(samples < min_)[0]
+                    wrong_args_max = np.where(samples > max_)[0]
+                    wrong_args = np.concatenate((wrong_args_min, wrong_args_max))
+                    samples[wrong_args] = np.random.normal(mean, 1, len(wrong_args))
+                
+                np.sort(samples)
+                if elem_0 > elem_1:
+                    samples = samples[::-1]
+
+                self.reconstructed_data[i*self.step_size:(i+1)*self.step_size] = samples
 
         self.reconstructed_data = self.reconstructed_data[self.reconstructed_data != 0]
         return self.reconstructed_data
