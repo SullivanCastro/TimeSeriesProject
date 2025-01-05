@@ -1,7 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 from math import floor
-
+import sys
 
 def sliding_windows_partitions(data, windows_size, step_size):
     """
@@ -53,20 +53,18 @@ def synthetise_data(data):
 
 
 def dyadic_alphabet(Q):
-    # return [format(i, f"0{Q}b") for i in range(2**Q)]
-    return np.arange(Q)
+    return [format(i, f"0{Q}b") for i in range(2**Q)]
 
 
 class meSAX:
 
-    def __init__(self, K, windows_size, step_size, method="uniform", alphabet_method="classic"):
+    def __init__(self, K, windows_size, step_size, method="uniform"):
         self.K = K
         self.method = method
         self.windows_size = windows_size
         self.step_size = step_size
         self.data = None
         self.symbol = []
-        self.alphabet_method = alphabet_method
         self.alphabet = self._generate_alphabet()
         self.breakpoints = np.random.rand(2**self.K - 1)
 
@@ -79,27 +77,21 @@ class meSAX:
 
 
     def _map_symbols(self, x):
-        self.symbol = []
+        self.symbol = ""
         for i in range(self.synthetised_data.shape[0]):
             for j in range(self.synthetised_data.shape[1]):
-                output = []
+                output = ""
                 for x in self.synthetised_data[i, j]: # triplet element
                     b = 0
                     while b < len(self.breakpoints) and x > self.breakpoints[b]:
                         b += 1
-                    output.append(self.alphabet[b])
-                self.symbol.append(output)
-        self.symbol = np.array(self.symbol)
+                    output += str(self.alphabet[b])
+                self.symbol += output
         return self.symbol
     
 
     def _generate_alphabet(self):
-        if self.alphabet_method == "classic":
-            return np.arange(2**self.K)
-        elif self.alphabet_method == "dyadic":
-            return dyadic_alphabet(2**self.K)
-        else:
-            raise ValueError("Invalid alphabet method")
+        return dyadic_alphabet(self.K)
 
 
     def _generate_breakpoints(self):
@@ -117,18 +109,27 @@ class meSAX:
         self._map_symbols(data)
         return self.symbol
     
+    def _group_by_size(self, s):
+        split_string = [s[i:i+3*self.K] for i in range(0, len(s), 3*self.K)]
+        final_list = []
+        for substring in split_string:
+            final_list.append([substring[i:i+self.K] for i in range(0, len(substring), self.K)])
+        return final_list
+            
+    
     def reconstruct(self):
-        self.reconstructed_data = np.zeros(self.data.shape)
-
-        for i, triplet in tqdm(enumerate(self.symbol)):
-            mean = self.breakpoints[triplet[1]]
-            elem_0, elem_1 = self.breakpoints[triplet[0]], self.breakpoints[triplet[2]]
+        symbol_list = self._group_by_size(self.symbol)
+        self.reconstructed_data = np.zeros(len(symbol_list)*self.step_size)
+        
+        for i, triplet in tqdm(enumerate(symbol_list)):
+            mean = self.breakpoints[int(triplet[1],2)]
+            elem_0, elem_1 = self.breakpoints[int(triplet[0],2)], self.breakpoints[int(triplet[2],2)]
+                
             min_, max_ = min(elem_0, elem_1), max(elem_0, elem_1)
-
             if mean==min_==max_:
                 self.reconstructed_data[i*self.step_size:(i+1)*self.step_size] = mean * np.ones(self.step_size)
             else:
-                samples = np.random.normal(mean, 0.5, self.step_size)
+                samples = np.random.normal(mean, np.sqrt((max_-min_)/2), self.step_size)
                 while np.any(samples < min_) or np.any(samples > max_):
                     wrong_args_min = np.where(samples < min_)[0]
                     wrong_args_max = np.where(samples > max_)[0]
@@ -143,3 +144,9 @@ class meSAX:
 
         self.reconstructed_data = self.reconstructed_data[self.reconstructed_data != 0]
         return self.reconstructed_data
+    
+    def _get_compression(self):
+        return sys.getsizeof(self.symbol)
+    
+    def get_compression_ratio(self):
+        return round(sys.getsizeof(self.data.tolist()) / sys.getsizeof(self.symbol), 3)
