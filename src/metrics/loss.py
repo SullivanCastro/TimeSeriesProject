@@ -21,6 +21,8 @@ def rmsre(y_true, y_pred):
     Returns:
         Le RMSRE
     """
-    msre_ = msre(y_true, y_pred)
+    idx = np.where(~np.isnan(y_true) & ~np.isnan(y_pred))
+
+    msre_ = msre(y_true[idx], y_pred[idx])
     rmsre = np.sqrt(msre_)
     return rmsre
