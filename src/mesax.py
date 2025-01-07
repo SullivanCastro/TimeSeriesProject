@@ -3,24 +3,16 @@ import numpy as np
 
 from src.utils import sliding_window_on_last_axis, sliding_window_to_signal
 
-def dyadic_alphabet(alphabet_size) -> list[str]:
-    """Generate a dyadic alphabet of size Q = 2^L, where L is the smallest integer such that 2^L >= alphabet_size.
-    
+def dyadic_alphabet(level) -> list[str]:
+    """Generate a dyadic alphabet of size Q = 2^L,
+
     Parameters:
-        alphabet_size: int: The size of the alphabet.
+        level: int: The level of the dyadic alphabet.
 
     Returns:
-        alphabet: A list of binary strings representing the dyadic alphabet.
+        alphabet: list[str]: The dyadic alphabet.
     """
-    
-    level = math.ceil(math.log2(alphabet_size))
-
-    if not (alphabet_size & (alphabet_size - 1)) == 0:
-        print("The alphabet size must be a power of 2. The next power of 2 will be used.")
-        alphabet_size = 2**level
-        print(f"Alphabet size: {2**level}")
-
-    return [format(i, f'0{level}b') for i in range(alphabet_size)]
+    return [format(i, f'0{level}b') for i in range(2**level)]
 
 
 class meSAX:
@@ -38,7 +30,8 @@ class meSAX:
         self._rolling_window_size = rolling_window_size # w in the paper
         self._rolling_window_stride = rolling_window_stride # s in the paper
         self._paa_window_size = paa_window_size # R in the paper
-        self._alphabet = dyadic_alphabet(alphabet_size)[:alphabet_size]
+        self._alphabet_level = math.ceil(math.log2(alphabet_size))
+        self._alphabet = dyadic_alphabet(self._alphabet_level)[:alphabet_size]
         self._breakpoints_numbers = len(self._alphabet) - 1
         self._breakpoints = None
 
@@ -139,10 +132,15 @@ class meSAX:
 
         # map the triplets to the alphabet
         encoded_triplets_data = np.digitize(triplets_data, self.breakpoints, right=True)
-        
-        return encoded_triplets_data
+        embedings = np.array(self._alphabet)[encoded_triplets_data]
+
+        # compute the compression ratio
+        embedings_str = "".join(embedings.reshape(-1))
+        compression_ratio = data.nbytes / len(embedings_str)
+
+        return embedings_str, compression_ratio
     
-    def predict(self, encoded_triplets_data: np.ndarray, sampling_method = "slope") -> np.ndarray:
+    def predict(self, binary_sequence: str, sampling_method = "slope") -> np.ndarray:
         """
         Reconstruct the time series data from the SAX representation.
 
@@ -153,32 +151,63 @@ class meSAX:
         - reconstructed_data: The reconstructed time series data from the SAX representation.
         """
 
+        binary_sequence_list = [binary_sequence[i:i+self._alphabet_level] for i in range(0, len(binary_sequence), self._alphabet_level)]
+
+        # decode the binary sequence to triplets
+        c_hat = self._rolling_window_size // self._paa_window_size
+        c = len(binary_sequence_list) // (3 * c_hat)
+        original_data_shape = (c, c_hat ,3)
+        binary_triplets_data = np.array(binary_sequence_list).reshape(original_data_shape)
+        encoded_triplets_data = np.vectorize(lambda x: int(x, 2))(binary_triplets_data)
+
+        # decode the triplets to the original data
         extended_breakpoints = np.concatenate(([self.breakpoints[0]], self.breakpoints, [self.breakpoints[-1]]))
         bucket_means = (extended_breakpoints[:-1] + extended_breakpoints[1:]) / 2
         bucket_means[0] = self.breakpoints[0]  # floor the first bucket
         bucket_means[-1] = self.breakpoints[-1]  # Cap the last bucket
         triplets_data = bucket_means[encoded_triplets_data]
 
+        theta_1 = triplets_data[..., 0][..., np.newaxis]
+        theta_2 = triplets_data[..., 1][..., np.newaxis]
+        theta_3 = triplets_data[..., 2][..., np.newaxis]
+
         # TODO : implem the random sampling method
+        print(sampling_method)
         if sampling_method == "slope":
-            
+            print('ok')
             mid_point = self._paa_window_size // 2
-
-            theta_1 = triplets_data[..., 0][..., np.newaxis]
-            theta_2 = triplets_data[..., 1][..., np.newaxis]
-            theta_3 = triplets_data[..., 2][..., np.newaxis]
-
             x = np.arange(self._paa_window_size)
-
             reconstructed_paa_signals = (
                     (theta_1 + (theta_2 - theta_1) / mid_point * x) * (x < mid_point) # slope 1
                     + (theta_2 + (theta_3 - theta_2) / mid_point * x) * (x >= mid_point) # slope 2
                 )
             reconstructed_rolling_window = reconstructed_paa_signals.reshape(reconstructed_paa_signals.shape[0], -1)
 
+        elif sampling_method == "normal":
+            reconstructed_paa_signals = np.zeros((triplets_data.shape[0], triplets_data.shape[1], self._paa_window_size))
+            for i in range(triplets_data.shape[0]):
+                for j in range(triplets_data.shape[1]):
+                    mean = theta_2[i, j]
+                    min_, max_ = min(theta_1[i,j], theta_3[i,j]), max(theta_1[i,j], theta_3[i,j])
+                
+                    samples = np.random.normal(mean, np.sqrt((max_-min_)/2), self._paa_window_size)
+                    while np.any(samples < min_) or np.any(samples > max_):
+                        wrong_args_min = np.where(samples < min_)[0]
+                        wrong_args_max = np.where(samples > max_)[0]
+                        wrong_args = np.concatenate((wrong_args_min, wrong_args_max))
+                        samples[wrong_args] = np.random.normal(mean, 1, len(wrong_args))
+                
+                    np.sort(samples)
+                    if theta_1[i, j] > theta_3[i, j]:
+                        samples = samples[::-1]
+
+                    reconstructed_paa_signals[i, j] = samples
+                    
         else:
             raise NotImplementedError("Invalid method for reconstruction")
-            
+        
+        reconstructed_rolling_window = reconstructed_paa_signals.reshape(reconstructed_paa_signals.shape[0], -1)
+        
         return sliding_window_to_signal(reconstructed_rolling_window, self._rolling_window_stride)
 
     @property
