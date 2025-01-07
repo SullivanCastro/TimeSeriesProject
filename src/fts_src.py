@@ -4,8 +4,16 @@ import scipy.sparse as sp
 
 from src.utils import sliding_window_on_last_axis, sliding_window_to_signal
 
+
 class FinancialTimeSeriesSparseModel:
-    def __init__(self, n_components: int, n_nonzero_coefs: int, window_size: int, stride:int, max_iter: int = 100):
+    def __init__(
+        self,
+        n_components: int,
+        n_nonzero_coefs: int,
+        window_size: int,
+        stride: int,
+        max_iter: int = 100,
+    ):
         """
         Financial Time Series Sparse Model using K-SVD for dictionary learning and Orthogonal Matching Pursuit (OMP) for sparse coding.
 
@@ -34,16 +42,18 @@ class FinancialTimeSeriesSparseModel:
             data: np.ndarray: A 1D time series data array.
         """
         print("[*] Segmenting time series into sliding windows...")
-        sliding_windows = sliding_window_on_last_axis(data, self._window_size, self._stride)
+        sliding_windows = sliding_window_on_last_axis(
+            data, self._window_size, self._stride
+        )
         self._original_data_size = sliding_windows.shape[0] * sliding_windows.shape[1]
         print("[*] Learning dictionary from the segmented data...")
         self.model = DictionaryLearning(
             n_components=self._n_components,
-            transform_algorithm='omp',
+            transform_algorithm="omp",
             max_iter=self._max_iter,
             transform_n_nonzero_coefs=self._n_nonzero_coefs,
             transform_max_iter=self._max_iter,
-            verbose=True
+            verbose=True,
         )
         self.model.fit(sliding_windows)
         print("\n[*] Transforming the segmented data into sparse codes...")
@@ -56,35 +66,48 @@ class FinancialTimeSeriesSparseModel:
 
         Parameters:
             data: np.ndarray: A 1D time series data array.
-        
+
         Returns:
         - sparse_codes: The sparse representation code of the data, that corresponds to the learned dictionary.
         """
-        sliding_windows = sliding_window_on_last_axis(data, self._window_size, self._stride)
+        sliding_windows = sliding_window_on_last_axis(
+            data, self._window_size, self._stride
+        )
         sparse_codes = self.model.transform(sliding_windows)
         return sparse_codes
-    
+
     def predict(self, data: np.ndarray) -> np.ndarray:
         """
         Reconstruct the time series data from the sparse codes.
 
         Parameters:
             data: np.ndarray: A 1D time series data array.
-        
+
         Returns:
         - reconstructed_data: The reconstructed time series data from the sparse codes.
         """
-        sliding_windows = sliding_window_on_last_axis(data, self._window_size, self._stride)
+        sliding_windows = sliding_window_on_last_axis(
+            data, self._window_size, self._stride
+        )
         sparse_codes = self.model.transform(sliding_windows)
         reconstructed_sliding_windows = sparse_codes @ self.dictionary
-        reconstructed_data = sliding_window_to_signal(reconstructed_sliding_windows, self._stride)
+        reconstructed_data = sliding_window_to_signal(
+            reconstructed_sliding_windows, self._stride
+        )
 
         # padd with nan at the end to match the original data size
         if len(reconstructed_data) < len(data):
-            reconstructed_data = np.concatenate([reconstructed_data, np.full(len(data) - len(reconstructed_data), np.nan)])
+            reconstructed_data = np.concatenate(
+                [
+                    reconstructed_data,
+                    np.full(len(data) - len(reconstructed_data), np.nan),
+                ]
+            )
 
-
-        compression_rattio = sp.csr_matrix(sliding_windows).data.nbytes / sp.csr_matrix(sparse_codes).data.nbytes
+        compression_rattio = (
+            sp.csr_matrix(sliding_windows).data.nbytes
+            / sp.csr_matrix(sparse_codes).data.nbytes
+        )
 
         return reconstructed_data, compression_rattio
 
@@ -93,21 +116,19 @@ class FinancialTimeSeriesSparseModel:
         if self.model is None:
             raise ValueError("Model is not fitted yet. Please fit the model first.")
         return self.model.components_
-    
+
     @property
     def train_sparse_codes(self):
         if self.model is None:
             raise ValueError("Model is not fitted yet. Please fit the model first.")
         return self._train_sparse_codes
-    
+
     def get_compression_ratio(self) -> float:
         """
         Calculate the compression ratio of the sparse representation.
         """
         if self.model is None:
             raise ValueError("Model is not fitted yet. Please fit the model first.")
-        
+
         compressed_size = (self.train_sparse_codes != 0).sum()
         return self._original_data_size / (self._n_nonzero_coefs)
-
-        
