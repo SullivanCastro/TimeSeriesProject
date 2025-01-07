@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.decomposition import DictionaryLearning
 import scipy.sparse as sp
 
-from src.utils import signal_to_sliding_window, sliding_window_to_signal
+from src.utils import sliding_window_on_last_axis, sliding_window_to_signal
 
 class FinancialTimeSeriesSparseModel:
     def __init__(self, n_components: int, n_nonzero_coefs: int, window_size: int, stride:int, max_iter: int = 100):
@@ -34,7 +34,7 @@ class FinancialTimeSeriesSparseModel:
             data: np.ndarray: A 1D time series data array.
         """
         print("[*] Segmenting time series into sliding windows...")
-        sliding_windows = signal_to_sliding_window(data, self._window_size, self._stride)
+        sliding_windows = sliding_window_on_last_axis(data, self._window_size, self._stride)
         self._original_data_size = sliding_windows.shape[0] * sliding_windows.shape[1]
         print("[*] Learning dictionary from the segmented data...")
         self.model = DictionaryLearning(
@@ -60,7 +60,7 @@ class FinancialTimeSeriesSparseModel:
         Returns:
         - sparse_codes: The sparse representation code of the data, that corresponds to the learned dictionary.
         """
-        sliding_windows = signal_to_sliding_window(data, self._window_size, self._stride)
+        sliding_windows = sliding_window_on_last_axis(data, self._window_size, self._stride)
         sparse_codes = self.model.transform(sliding_windows)
         return sparse_codes
     
@@ -74,7 +74,7 @@ class FinancialTimeSeriesSparseModel:
         Returns:
         - reconstructed_data: The reconstructed time series data from the sparse codes.
         """
-        sliding_windows = signal_to_sliding_window(data, self._window_size, self._stride)
+        sliding_windows = sliding_window_on_last_axis(data, self._window_size, self._stride)
         sparse_codes = self.model.transform(sliding_windows)
         reconstructed_sliding_windows = sparse_codes @ self.dictionary
         reconstructed_data = sliding_window_to_signal(reconstructed_sliding_windows, self._stride)
