@@ -109,8 +109,6 @@ class meSAX:
             self._breakpoints = np.quantile(X, np.linspace(0, 1, self._breakpoints_numbers))
         else:
             raise NotImplementedError("Invalid method for breakpoints generation")
-        
-        return self
     
     def transform(self, data: np.ndarray) -> np.ndarray:
         """
@@ -140,6 +138,20 @@ class meSAX:
 
         return embedings_str, compression_ratio
     
+    def fit_transform(self, data: np.ndarray, fitting_method = "uniform") -> np.ndarray:
+        """
+        Fit the meSAX model to the data and transform it into the SAX representation.
+
+        Parameters:
+            data: np.ndarray: A 1D time series data array.
+            fitting_method: str: The method used to generate the breakpoints. Default is "uniform".
+
+        Returns:
+        - sax_data: The SAX representation of the data.
+        """
+        self.fit(data, fitting_method)
+        return self.transform(data)
+
     def predict(self, binary_sequence: str, sampling_method = "slope") -> np.ndarray:
         """
         Reconstruct the time series data from the SAX representation.
@@ -171,10 +183,7 @@ class meSAX:
         theta_2 = triplets_data[..., 1][..., np.newaxis]
         theta_3 = triplets_data[..., 2][..., np.newaxis]
 
-        # TODO : implem the random sampling method
-        print(sampling_method)
         if sampling_method == "slope":
-            print('ok')
             mid_point = self._paa_window_size // 2
             x = np.arange(self._paa_window_size)
             reconstructed_paa_signals = (
