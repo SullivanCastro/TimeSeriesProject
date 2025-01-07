@@ -9,8 +9,11 @@ def msre(y_true, y_pred):
     Returns:
         MSRE
     """
-    relative_errors = (y_true - y_pred) / y_true
-    return np.mean(relative_errors**2)
+    
+    relative_errors = (y_true - y_pred) / y_true * (y_true != 0)
+    relative_errors = relative_errors[~np.isnan(relative_errors)]
+    
+    return np.mean(relative_errors**2,)
 
 def rmsre(y_true, y_pred):
     """

@@ -135,7 +135,7 @@ class meSAX:
 
         # convert data in binary and compute the compression ratio
         embedings_str = "".join(embedings.reshape(-1))
-        compression_ratio = data.nbytes / len(embedings_str)
+        compression_ratio = rolling_windows.nbytes / np.array([elt for elt in embedings_str]).nbytes
 
         return embedings_str, compression_ratio
 
