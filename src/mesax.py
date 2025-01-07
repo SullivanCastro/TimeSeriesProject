@@ -33,7 +33,7 @@ class meSAX:
         self._rolling_window_size = rolling_window_size  # w in the paper
         self._rolling_window_stride = rolling_window_stride  # s in the paper
         self._paa_window_size = paa_window_size  # R in the paper
-        self._alphabet_level = math.ceil(math.log2(alphabet_size))
+        self._alphabet_level = math.ceil(math.log2(alphabet_size)) # Q in the paper
         self._alphabet = dyadic_alphabet(self._alphabet_level)[:alphabet_size]
         self._breakpoints_numbers = len(self._alphabet) - 1
         self._breakpoints = None
@@ -133,7 +133,7 @@ class meSAX:
         encoded_triplets_data = np.digitize(triplets_data, self.breakpoints, right=True)
         embedings = np.array(self._alphabet)[encoded_triplets_data]
 
-        # compute the compression ratio
+        # convert data in binary and compute the compression ratio
         embedings_str = "".join(embedings.reshape(-1))
         compression_ratio = data.nbytes / len(embedings_str)
 
@@ -164,12 +164,13 @@ class meSAX:
         - reconstructed_data: The reconstructed time series data from the SAX representation.
         """
 
+        # decode each element of the binary sequence 
         binary_sequence_list = [
             binary_sequence[i : i + self._alphabet_level]
             for i in range(0, len(binary_sequence), self._alphabet_level)
         ]
 
-        # decode the binary sequence to triplets
+        # decode the binary sequence to triplets by rescising the sequence to the original shape
         c_hat = self._rolling_window_size // self._paa_window_size
         c = len(binary_sequence_list) // (3 * c_hat)
         original_data_shape = (c, c_hat, 3)
@@ -178,7 +179,7 @@ class meSAX:
         )
         encoded_triplets_data = np.vectorize(lambda x: int(x, 2))(binary_triplets_data)
 
-        # decode the triplets to the original data
+        # decode the triplets values to beans mean
         extended_breakpoints = np.concatenate(
             ([self.breakpoints[0]], self.breakpoints, [self.breakpoints[-1]])
         )
@@ -187,6 +188,7 @@ class meSAX:
         bucket_means[-1] = self.breakpoints[-1]  # Cap the last bucket
         triplets_data = bucket_means[encoded_triplets_data]
 
+        # retrieve the data features
         theta_1 = triplets_data[..., 0][..., np.newaxis]
         theta_2 = triplets_data[..., 1][..., np.newaxis]
         theta_3 = triplets_data[..., 2][..., np.newaxis]
