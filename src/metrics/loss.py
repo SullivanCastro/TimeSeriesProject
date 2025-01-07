@@ -21,6 +21,12 @@ def rmsre(y_true, y_pred):
     Returns:
         Le RMSRE
     """
+    # complete with nan if not the same length
+    if len(y_true) < len(y_pred):
+        y_true = np.append(y_true, [np.nan] * (len(y_pred) - len(y_true)))
+    elif len(y_pred) < len(y_true):
+        y_pred = np.append(y_pred, [np.nan] * (len(y_true) - len(y_pred)))
+
     idx = np.where(~np.isnan(y_true) & ~np.isnan(y_pred))
 
     msre_ = msre(y_true[idx], y_pred[idx])
