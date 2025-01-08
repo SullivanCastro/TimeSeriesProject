@@ -76,6 +76,19 @@ class FinancialTimeSeriesSparseModel:
         sparse_codes = self.model.transform(sliding_windows)
         return sparse_codes
 
+    def fit_transform(self, data: np.ndarray) -> np.ndarray:
+        """
+        Fit the model and transform the data into sparse codes.
+
+        Parameters:
+            data: np.ndarray: A 1D time series data array.
+
+        Returns:
+            sparse_codes: The sparse representation code of the data, that corresponds to the learned dictionary.
+        """
+        self.fit(data)
+        return self._train_sparse_codes
+
     def predict(self, data: np.ndarray) -> np.ndarray:
         """
         Reconstruct the time series data from the sparse codes.

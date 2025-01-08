@@ -209,7 +209,7 @@ class meSAX:
                 reconstructed_paa_signals.shape[0], -1
             )
 
-        elif sampling_method == "normal":
+        elif sampling_method == "random":
             reconstructed_paa_signals = np.zeros(
                 (triplets_data.shape[0], triplets_data.shape[1], self._paa_window_size)
             )
